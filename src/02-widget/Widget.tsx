@@ -1,20 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 import './widget.css';
 
 export const Widget = () => {
-  const [width, setWidth] = useState();
+  const [dimensions, setDimensions] = useState<{width: number, height: number}>({width: 0, height: 0});
   const iframeContainer = useRef<any>();
 
   useEffect(() => {
-    const measurements = iframeContainer.current.getBoundingClientRect();
-    if (measurements) {
-      setWidth(measurements.width);
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.message == 'surferseo_iframe_dimensions') {
+        setDimensions(event.data.payload);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
     }
   }, []);
 
   return (
-    <div className="widget">
+    <div className="widget" style={{visibility: dimensions.height ? 'visible' : 'hidden'}}>
       <h1>App content</h1>
       <p>Check out our latest podcast</p>
       <div
@@ -25,10 +31,12 @@ export const Widget = () => {
         ref={iframeContainer}
       >
         <iframe
-          height="117px"
-          width={width}
           src="/iframe"
-          style={{ border: 0 }}
+          style={{
+            border: 0,
+            width: '100%',
+            ...(dimensions.height ? {height: dimensions.height} : {})
+          }}
         />
       </div>
     </div>

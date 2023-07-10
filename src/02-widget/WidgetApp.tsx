@@ -1,4 +1,3 @@
-import React from 'react';
 import { Instructions } from './Instructions';
 import { Widget } from './Widget';
 
