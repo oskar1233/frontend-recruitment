@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect } from 'react';
 import { PillData } from './data';
 import { Pill } from './Pill';
 
@@ -25,6 +25,12 @@ export function Pills({ pills, headers, toggleHeader }: PillsProps) {
   const containerNode = React.useRef<HTMLDivElement>(null);
   const pillRefs = React.useRef<{ [id: PillData['id']]: HTMLDivElement }>({});
 
+  // Used to measure how much space a pill header takes up
+  const measurePillHeader = React.useRef<HTMLDivElement>(null);
+  const measurePillNoHeader = React.useRef<HTMLDivElement>(null);
+
+  const [additionalSpacePerPill, setAdditionalSpacePerPill] = React.useState<number>(0);
+  const [layoutWidth, setLayoutWidth] = React.useState<number>(0);
   const [layoutElements, setLayoutElements] = React.useState<LayoutElement[]>(
     () => {
       return pills.map((pill) => ({
@@ -35,15 +41,62 @@ export function Pills({ pills, headers, toggleHeader }: PillsProps) {
     }
   );
 
+  // Measure how much space a pill header takes up
+  useLayoutEffect(() => {
+    setAdditionalSpacePerPill(measurePillHeader.current!.clientWidth - measurePillNoHeader.current!.clientWidth);
+  }, []);
+
+  // Measure how much space the container offers
+  useLayoutEffect(() => {
+    setLayoutWidth(containerNode.current!.clientWidth);
+
+    function handleResize() {
+      setLayoutWidth(containerNode.current!.clientWidth);
+    }
+
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   useEffect(() => {
-    setLayoutElements(
-      pills.map((pill) => ({
-        index: pill.id,
-        type: 'pill',
-        pill: pill,
-      }))
-    );
-  }, [pills]);
+    // Create a pill element from a pill data object and index
+    const layoutElementFromPill = (pill: PillData, index: number) => {
+      const layoutElement = {
+        index: index.toString(),
+        type: 'pill' as 'pill',
+        pill: pill
+      };
+
+      index++;
+
+      return layoutElement;
+    };
+
+    // Create line break element from index
+    const lineBreakElement = (index: number): LayoutBreakElement => ({index: index.toString(), type: 'line-break'});
+
+    // Create layout elements from pills and make sure they fit in the layout
+    const layoutElements = pills.reduce<{width: number, elements: LayoutElement[]}>((acc, pill, index) => {
+      const pillRef = pillRefs.current[pill.id]!;
+      const pillWidth = headers.includes(pill.id) ? pillRef.clientWidth : pillRef.clientWidth + additionalSpacePerPill;
+
+      if (acc.width + pillWidth > layoutWidth) {
+        return {
+          elements: [...acc.elements, lineBreakElement(index), layoutElementFromPill(pill, index)],
+          width: pillWidth,
+        };
+      } else {
+        return {
+          elements: [...acc.elements, layoutElementFromPill(pill, index)],
+          width: acc.width + pillWidth,
+        };
+      }
+    }, {elements: [], width: 0}).elements;
+
+    setLayoutElements(layoutElements);
+
+  }, [pills, layoutWidth]);
 
   const setPillRef = (id: PillData['id'], node: HTMLDivElement) => {
     if (node) {
@@ -70,7 +123,12 @@ export function Pills({ pills, headers, toggleHeader }: PillsProps) {
             </Pill>
           );
         }
-      })}
+        })}
+
+      <div style={{position: 'absolute', visibility: 'hidden', zIndex: -1}}>
+        <Pill ref={measurePillNoHeader} header={false} onClick={() => {}}>test</Pill>
+        <Pill ref={measurePillHeader} header={true} onClick={() => {}}>test</Pill>
+      </div>
     </div>
   );
 }
